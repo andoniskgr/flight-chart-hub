@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AirportCombobox } from "@/components/AirportCombobox";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 interface Aircraft {
   id: string;
@@ -43,6 +45,44 @@ const FlightRouteDialog = ({ open, onOpenChange, route, aircraft, onSuccess }: F
   });
   const [loading, setLoading] = useState(false);
 
+  // Convert UTC datetime to local datetime for input (datetime-local interprets as local time)
+  // When editing, we need to show UTC time, so we'll display it as if it were local
+  const formatDateTimeLocal = (utcDateString: string): string => {
+    if (!utcDateString) return "";
+    const utcDate = new Date(utcDateString);
+    // Extract UTC components directly (treating UTC as if it were local for input)
+    // This way the user sees and inputs UTC times
+    const year = utcDate.getUTCFullYear();
+    const month = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(utcDate.getUTCDate()).padStart(2, '0');
+    const hours = String(utcDate.getUTCHours()).padStart(2, '0');
+    const minutes = String(utcDate.getUTCMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  // Convert datetime input to UTC
+  // Since we're treating the input as UTC (even though browser sees it as local),
+  // we need to create a UTC date from the input string
+  const convertLocalToUTC = (dateTimeString: string): string => {
+    if (!dateTimeString) return "";
+    // Parse the datetime string (YYYY-MM-DDTHH:mm)
+    // Treat the input as UTC time directly
+    const [datePart, timePart] = dateTimeString.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hours, minutes] = timePart.split(':').map(Number);
+    
+    // Create UTC date
+    const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
+    return utcDate.toISOString();
+  };
+
+  // Format UTC time for display (24-hour format)
+  const formatUTCTime = (dateString: string): string => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    return format(date, 'yyyy-MM-dd HH:mm') + ' UTC';
+  };
+
   useEffect(() => {
     if (route) {
       setFormData({
@@ -50,8 +90,8 @@ const FlightRouteDialog = ({ open, onOpenChange, route, aircraft, onSuccess }: F
         aircraft_id: route.aircraft_id,
         origin: route.origin,
         destination: route.destination,
-        departure_time: new Date(route.departure_time).toISOString().slice(0, 16),
-        arrival_time: new Date(route.arrival_time).toISOString().slice(0, 16),
+        departure_time: formatDateTimeLocal(route.departure_time),
+        arrival_time: formatDateTimeLocal(route.arrival_time),
         status: route.status,
       });
     } else {
@@ -72,10 +112,11 @@ const FlightRouteDialog = ({ open, onOpenChange, route, aircraft, onSuccess }: F
     setLoading(true);
 
     try {
+      // Convert local datetime inputs to UTC
       const data = {
         ...formData,
-        departure_time: new Date(formData.departure_time).toISOString(),
-        arrival_time: new Date(formData.arrival_time).toISOString(),
+        departure_time: convertLocalToUTC(formData.departure_time),
+        arrival_time: convertLocalToUTC(formData.arrival_time),
       };
 
       if (route) {
@@ -148,46 +189,54 @@ const FlightRouteDialog = ({ open, onOpenChange, route, aircraft, onSuccess }: F
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="origin">Origin</Label>
-              <Input
-                id="origin"
+              <AirportCombobox
                 value={formData.origin}
-                onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
-                placeholder="JFK"
-                required
+                onValueChange={(value) => setFormData({ ...formData, origin: value })}
+                placeholder="Select origin airport..."
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="destination">Destination</Label>
-              <Input
-                id="destination"
+              <AirportCombobox
                 value={formData.destination}
-                onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-                placeholder="LAX"
-                required
+                onValueChange={(value) => setFormData({ ...formData, destination: value })}
+                placeholder="Select destination airport..."
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="departure_time">Departure Time</Label>
+              <Label htmlFor="departure_time">Departure Time (UTC, 24-hour format)</Label>
               <Input
                 id="departure_time"
                 type="datetime-local"
                 value={formData.departure_time}
                 onChange={(e) => setFormData({ ...formData, departure_time: e.target.value })}
+                step="60"
                 required
               />
+              {formData.departure_time && (
+                <p className="text-xs text-muted-foreground">
+                  Will be saved as UTC: {formatUTCTime(convertLocalToUTC(formData.departure_time))}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="arrival_time">Arrival Time</Label>
+              <Label htmlFor="arrival_time">Arrival Time (UTC, 24-hour format)</Label>
               <Input
                 id="arrival_time"
                 type="datetime-local"
                 value={formData.arrival_time}
                 onChange={(e) => setFormData({ ...formData, arrival_time: e.target.value })}
+                step="60"
                 required
               />
+              {formData.arrival_time && (
+                <p className="text-xs text-muted-foreground">
+                  Will be saved as UTC: {formatUTCTime(convertLocalToUTC(formData.arrival_time))}
+                </p>
+              )}
             </div>
           </div>
 
