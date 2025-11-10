@@ -14,20 +14,21 @@ const authSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   fullName: z.string().min(2, "Full name must be at least 2 characters").optional(),
+  code: z.string().length(4, "Code must be exactly 4 letters").regex(/^[A-Za-z]{4}$/, "Code must contain only letters"),
 });
 
 const Auth = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
-  const [signupData, setSignupData] = useState({ email: "", password: "", fullName: "" });
+  const [signupData, setSignupData] = useState({ email: "", password: "", fullName: "", code: "" });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      authSchema.omit({ fullName: true }).parse(loginData);
+      authSchema.omit({ fullName: true, code: true }).parse(loginData);
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email: loginData.email,
@@ -68,6 +69,7 @@ const Auth = () => {
           emailRedirectTo: `${window.location.origin}/dashboard`,
           data: {
             full_name: signupData.fullName,
+            code: signupData.code.toUpperCase(),
           },
         },
       });
@@ -171,6 +173,19 @@ const Auth = () => {
                     type="password"
                     value={signupData.password}
                     onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-code">4-Letter Code</Label>
+                  <Input
+                    id="signup-code"
+                    type="text"
+                    placeholder="ABCD"
+                    value={signupData.code}
+                    onChange={(e) => setSignupData({ ...signupData, code: e.target.value.toUpperCase().slice(0, 4) })}
+                    maxLength={4}
+                    pattern="[A-Za-z]{4}"
                     required
                   />
                 </div>
